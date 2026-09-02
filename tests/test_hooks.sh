@@ -93,4 +93,18 @@ echo '{"cwd":"'"$HOME"'","transcript_path":"'"$T"'/tr.jsonl","trigger":"auto"}' 
 check "never writes into \$HOME" '[ ! -d "$HOME/.claude/handoffs" ]'
 echo '{"cwd":"/tmp"}' | $LOAD; check "outside git: silent, exit 0" '[ $? -eq 0 ]'
 
+echo "# installer"
+CH="$T/claude-home"; INST="$(dirname "$HOOKS")/install.sh"
+mkdir -p "$CH"; CLAUDE_HOME="$CH" bash "$INST" --copy >/dev/null
+check "hook command follows CLAUDE_HOME" 'grep -q "$CH/hooks/handoff-load.py" "$CH/settings.json"'
+python3 - "$CH/settings.json" <<'J'
+import json, sys; p=sys.argv[1]; d=json.load(open(p))
+d["hooks"]["SessionStart"][0]["hooks"].append({"type":"command","command":"echo keep-me"})
+json.dump(d, open(p,"w"))
+J
+CLAUDE_HOME="$CH" bash "$INST" --uninstall >/dev/null
+check "uninstall keeps unrelated sibling hook" 'grep -q keep-me "$CH/settings.json" && ! grep -q handoff- "$CH/settings.json"'
+CLAUDE_HOME="$CH" bash "$INST" --copy >/dev/null; CLAUDE_HOME="$CH" bash "$INST" --uninstall >/dev/null
+check "uninstall on default-shaped install leaves no hook block" '! grep -q handoff- "$CH/settings.json"'
+
 echo; echo "passed=$pass failed=$fail"; cd /; rm -rf "$T"; exit $fail

@@ -20,7 +20,11 @@ p = pathlib.Path(sys.argv[1])
 if not p.exists(): sys.exit(0)
 d = json.loads(p.read_text()); h = d.get("hooks", {})
 for ev in ("SessionStart", "PreCompact"):
-    h[ev] = [e for e in h.get(ev, []) if not any("handoff-" in x.get("command", "") for x in e.get("hooks", []))]
+    kept = []
+    for e in h.get(ev, []):
+        e["hooks"] = [x for x in e.get("hooks", []) if "handoff-" not in x.get("command", "")]
+        if e["hooks"]: kept.append(e)
+    h[ev] = kept
     if not h[ev]: h.pop(ev)
 p.write_text(json.dumps(d, indent=2) + "\n")
 PY
@@ -40,9 +44,11 @@ done
 
 SETTINGS="$CLAUDE/settings.json"
 [ -f "$SETTINGS" ] && cp "$SETTINGS" "$SETTINGS.bak-handoff-$(date +%Y%m%d%H%M%S)"
-python3 - "$SETTINGS" <<'PY'
+# Keep the literal $HOME form for the default location so settings.json stays portable.
+if [ "$CLAUDE" = "$HOME/.claude" ]; then HOOKDIR='$HOME/.claude/hooks'; else HOOKDIR="$CLAUDE/hooks"; fi
+python3 - "$SETTINGS" "$HOOKDIR" <<'PY'
 import json, sys, pathlib
-p = pathlib.Path(sys.argv[1])
+p = pathlib.Path(sys.argv[1]); hookdir = sys.argv[2]
 d = json.loads(p.read_text()) if p.exists() else {}
 h = d.setdefault("hooks", {})
 def has(ev, needle):
@@ -51,12 +57,12 @@ if not has("SessionStart", "handoff-load.py"):
     h.setdefault("SessionStart", []).append({
         "matcher": "startup|resume|clear|compact",
         "hooks": [{"type": "command",
-                   "command": "python3 \"$HOME/.claude/hooks/handoff-load.py\"",
+                   "command": f'python3 "{hookdir}/handoff-load.py"',
                    "timeout": 10, "statusMessage": "Loading handoff"}]})
 if not has("PreCompact", "handoff-precompact.py"):
     h.setdefault("PreCompact", []).append({
         "hooks": [{"type": "command",
-                   "command": "python3 \"$HOME/.claude/hooks/handoff-precompact.py\"",
+                   "command": f'python3 "{hookdir}/handoff-precompact.py"',
                    "timeout": 20, "statusMessage": "Writing handoff auto-snapshot"}]})
 p.write_text(json.dumps(d, indent=2) + "\n")
 PY
