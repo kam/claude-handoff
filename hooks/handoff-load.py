@@ -17,6 +17,7 @@ mtime). When the newest is an auto-snapshot and a manual `active` handoff
 also exists, both load: the handoff first, then the snapshot as the delta.
 Output is capped (HANDOFF_LOAD_CAP, default 12000 chars). Fails open.
 """
+
 import json
 import os
 import sys
@@ -24,8 +25,14 @@ from pathlib import Path
 
 try:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from handoff_common import (HANDOFF_DIR, env_int, file_stamp, is_tracked,  # noqa: E402
-                                read_handoffs, repo_context)
+    from handoff_common import (
+        HANDOFF_DIR,
+        env_int,
+        file_stamp,
+        is_tracked,
+        read_handoffs,
+        repo_context,
+    )
 except Exception:  # a broken helper must never block a session or a compaction
     sys.exit(0)
 
@@ -55,6 +62,23 @@ def emit(path, text, top, source, budget, label):
     return len(text)
 
 
+def candidates(hdir, top, branch):
+    """(mine, tracked, other_branches): loadable files for this branch,
+    tracked ones refused, and branch names seen elsewhere."""
+    mine, tracked, other_branches = [], [], set()
+    for p, text, fm in read_handoffs(hdir):
+        if fm["status"] not in LOADABLE:
+            continue
+        if fm["branch"] != branch:
+            other_branches.add(fm["branch"])
+            continue
+        if is_tracked(p, top):
+            tracked.append(os.path.relpath(p, top))
+            continue
+        mine.append((file_stamp(p, fm), fm["status"], p, text))
+    return mine, tracked, other_branches
+
+
 def main():
     try:
         data = json.load(sys.stdin)
@@ -71,26 +95,20 @@ def main():
     if not hdir.is_dir():
         return
 
-    mine, tracked, other_branches = [], [], set()
-    for p, text, fm in read_handoffs(hdir):
-        if fm["status"] not in LOADABLE:
-            continue
-        if fm["branch"] != branch:
-            other_branches.add(fm["branch"])
-            continue
-        if is_tracked(p, top):
-            tracked.append(os.path.relpath(p, top))
-            continue
-        mine.append((file_stamp(p, fm), fm["status"], p, text))
+    mine, tracked, other_branches = candidates(hdir, top, branch)
 
     if tracked:
-        print("Handoff files are tracked by git and were NOT loaded (handoffs "
-              "must be untracked): " + ", ".join(tracked))
+        print(
+            "Handoff files are tracked by git and were NOT loaded (handoffs "
+            "must be untracked): " + ", ".join(tracked)
+        )
     if not mine:
         if other_branches:
-            print(f"No handoff for branch `{branch}`. Handoffs exist for: "
-                  + ", ".join(sorted(other_branches))
-                  + ". `/handoff resume <branch>` reads one explicitly.")
+            print(
+                f"No handoff for branch `{branch}`. Handoffs exist for: "
+                + ", ".join(sorted(other_branches))
+                + ". `/handoff resume <branch>` reads one explicitly."
+            )
         return
 
     mine.sort(key=lambda c: c[0], reverse=True)
@@ -99,12 +117,24 @@ def main():
         manual = next((c for c in mine if c[1] == "active"), None)
         if manual:
             used = emit(manual[2], manual[3], top, source, cap, "reviewed handoff")
-            emit(newest, newest_text, top, source, max(cap - used, 2000),
-                 f"auto-snapshot written later ({newest_stamp:%Y-%m-%d %H:%M}) — "
-                 "hook-written delta since the handoff, not reviewed")
+            emit(
+                newest,
+                newest_text,
+                top,
+                source,
+                max(cap - used, 2000),
+                f"auto-snapshot written later ({newest_stamp:%Y-%m-%d %H:%M}) — "
+                "hook-written delta since the handoff, not reviewed",
+            )
             return
-        emit(newest, newest_text, top, source, cap,
-             "auto-snapshot — hook-written before compaction, not a reviewed handoff")
+        emit(
+            newest,
+            newest_text,
+            top,
+            source,
+            cap,
+            "auto-snapshot — hook-written before compaction, not a reviewed handoff",
+        )
         return
     emit(newest, newest_text, top, source, cap, None)
 
