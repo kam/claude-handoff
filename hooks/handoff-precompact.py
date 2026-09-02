@@ -11,8 +11,8 @@ after `.claude/handoffs/` is confirmed present in <git-common-dir>/info/exclude
 nothing is written. Skipped when a manual `active` handoff for this branch
 has `updated:` within HANDOFF_FRESH_MINUTES (default 30). Every field is
 redacted with the shared secret filter. Verbatim prompts can be turned off
-with HANDOFF_SNAPSHOT_PROMPTS=0. Files are timestamped to the minute and
-pruned to HANDOFF_KEEP_SNAPSHOTS per branch (default 5). Fails open.
+with HANDOFF_SNAPSHOT_PROMPTS=0. Files are timestamped to the minute (a
+same-minute collision gets a `.2` suffix) and pruned to HANDOFF_KEEP_SNAPSHOTS per branch (default 5). Fails open.
 """
 import datetime as dt
 import json
@@ -24,7 +24,7 @@ from pathlib import Path
 try:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from handoff_common import (HANDOFF_DIR, clip, ensure_excluded, env_int,  # noqa: E402
-                                frontmatter, parse_stamp, repo_context, slug)
+                                git, parse_stamp, read_handoffs, repo_context, slug)
 except Exception:  # a broken helper must never block a session or a compaction
     sys.exit(0)
 
@@ -85,20 +85,31 @@ def scan(transcript):
 
 def fresh_manual_exists(hdir, branch, minutes):
     cutoff = dt.datetime.now() - dt.timedelta(minutes=minutes)
-    for p in hdir.glob("*.md"):
-        try:
-            fm = frontmatter(p.read_text(encoding="utf-8", errors="replace")[:1000])
-        except Exception:
-            continue
-        if fm.get("status") == "active" and fm.get("branch") == branch:
+    for _p, _text, fm in read_handoffs(hdir):
+        if fm["status"] == "active" and fm["branch"] == branch:
             stamp = parse_stamp(fm.get("updated"))
             if stamp and stamp >= cutoff:
                 return True
     return False
 
 
+def snapshot_path(hdir, now, branch_slug):
+    """Minute-stamped name; a second write in the same minute gets `.2`, `.3`…
+    rather than overwriting the first."""
+    stem = f"{now:%Y-%m-%d-%H%M}"
+    path = hdir / f"{stem}-{branch_slug}-auto-snapshot.md"
+    n = 1
+    while path.exists():
+        n += 1
+        path = hdir / f"{stem}.{n}-{branch_slug}-auto-snapshot.md"
+    return path
+
+
 def prune(hdir, branch_slug, keep):
-    snaps = sorted(hdir.glob(f"*-{branch_slug}-auto-snapshot.md"),
+    # Anchored match: `demo` must not claim `feature-demo`'s snapshots.
+    own = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{4}(?:\.\d+)?-"
+                     + re.escape(branch_slug) + r"-auto-snapshot\.md$")
+    snaps = sorted((p for p in hdir.glob("*-auto-snapshot.md") if own.match(p.name)),
                    key=lambda p: p.stat().st_mtime, reverse=True)
     for old in snaps[keep:]:
         try:
@@ -125,7 +136,7 @@ def main():
     now = dt.datetime.now()
     bslug = slug(branch)
     hdir.mkdir(parents=True, exist_ok=True)
-    path = hdir / f"{now:%Y-%m-%d-%H%M}-{bslug}-auto-snapshot.md"
+    path = snapshot_path(hdir, now, bslug)
     trigger = data.get("trigger", "unknown")
 
     status = clip(git_or(["status", "--short"], cwd, "(clean)"), 1500)
@@ -147,7 +158,7 @@ def main():
         "decisions and rejected options must be reconstructed from the prompts "
         "below and the code. Prefer `/handoff` before the next compaction.", "",
         "## Current state", "",
-        f"- Branch `{branch}`" + (f", {ahead} commit(s) ahead of upstream" if ahead else ""),
+        f"- Branch `{branch}`" + (f", {ahead} commit(s) ahead of upstream" if ahead and ahead != "0" else ""),
         "- `git status --short`:", "", "```", status, "```", "",
         "- Recent commits:", "", "```", log, "```", "",
         "## Files edited this session", "",
@@ -168,7 +179,6 @@ def main():
 
 
 def git_or(args, cwd, default):
-    from handoff_common import git
     out = git(args, cwd)
     return out if out else default
 
