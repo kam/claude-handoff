@@ -47,6 +47,13 @@ for i in 1 2 3 4 5 6; do cp "$SNAP1" ".claude/handoffs/2020-01-0$i-000$i-feature
 pre auto; N=$(/bin/ls .claude/handoffs/*auto-snapshot.md | wc -l | tr -d ' ')
 check "pruned to 5 per branch" '[ "$N" -eq 5 ]'
 HANDOFF_FRESH_MINUTES=off pre auto; check "bad env fails open (exit 0)" '[ $? -eq 0 ]'
+rm -f .claude/handoffs/*; pre auto; pre auto; N=$(/bin/ls .claude/handoffs/*auto-snapshot.md | wc -l | tr -d ' ')
+check "same-minute snapshot gets a suffix, not overwritten" '[ "$N" -eq 2 ] && /bin/ls .claude/handoffs | grep -qE "^[0-9-]+\.2-feature-demo-auto-snapshot"'
+for i in 1 2 3 4 5 6 7; do printf -- '---\nstatus: auto-snapshot\nbranch: demo\n---\n' > ".claude/handoffs/2020-01-0$i-000$i-demo-auto-snapshot.md"; done
+pre auto; N=$(/bin/ls .claude/handoffs/*-demo-auto-snapshot.md | grep -vc feature-demo | tr -d ' ')
+check "prune ignores other branch with suffix-matching slug" '[ "$N" -eq 7 ]'
+git branch -q up && git branch -q -u up && pre auto && git branch -q --unset-upstream
+check "snapshot omits '0 commits ahead' when even with upstream" '! grep -q "0 commit(s) ahead" "$(/bin/ls -t .claude/handoffs/*feature-demo-auto-snapshot.md | head -1)"'
 HANDOFF_SNAPSHOT_PROMPTS=0 pre auto; L=$(/bin/ls -t .claude/handoffs/*auto-snapshot.md | head -1)
 check "prompt capture opt-out" 'grep -q "capture disabled" "$L" && ! grep -q "ruled out cookies" "$L"'
 rm -f .claude/handoffs/*
