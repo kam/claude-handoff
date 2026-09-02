@@ -4,6 +4,7 @@ Both hooks import this file by path, so the three files travel together.
 Every helper fails soft: bad input yields None / defaults, never an exception
 the caller has to handle.
 """
+
 import datetime as dt
 import os
 import re
@@ -17,26 +18,26 @@ EXCLUDE_LINE = ".claude/handoffs/"
 # Shape list first (cheap, precise), then key=value, then a generic
 # high-entropy catch-all. Every snapshot field passes through redact().
 _SHAPES = [
-    r"sk-[A-Za-z0-9_-]{16,}",                       # OpenAI / Anthropic (sk-ant-, sk-proj-)
-    r"sk_(?:live|test)_[A-Za-z0-9]{16,}",            # Stripe
+    r"sk-[A-Za-z0-9_-]{16,}",  # OpenAI / Anthropic (sk-ant-, sk-proj-)
+    r"sk_(?:live|test)_[A-Za-z0-9]{16,}",  # Stripe
     r"rk_(?:live|test)_[A-Za-z0-9]{16,}",
-    r"AKIA[A-Z0-9]{16}",                             # AWS access key id
-    r"AIza[0-9A-Za-z_-]{35}",                        # Google API key
-    r"ya29\.[0-9A-Za-z_-]{20,}",                     # Google OAuth
-    r"gh[pousr]_[A-Za-z0-9]{20,}",                   # GitHub tokens
+    r"AKIA[A-Z0-9]{16}",  # AWS access key id
+    r"AIza[0-9A-Za-z_-]{35}",  # Google API key
+    r"ya29\.[0-9A-Za-z_-]{20,}",  # Google OAuth
+    r"gh[pousr]_[A-Za-z0-9]{20,}",  # GitHub tokens
     r"github_pat_[A-Za-z0-9_]{20,}",
-    r"glpat-[A-Za-z0-9_-]{20,}",                     # GitLab
-    r"xox[abposr]-[A-Za-z0-9-]{10,}",                # Slack
+    r"glpat-[A-Za-z0-9_-]{20,}",  # GitLab
+    r"xox[abposr]-[A-Za-z0-9-]{10,}",  # Slack
     r"xapp-[A-Za-z0-9-]{10,}",
     r"eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}",  # JWT
-    r"-----BEGIN[^-]{0,40}-----",                    # PEM headers (any kind)
+    r"-----BEGIN[^-]{0,40}-----",  # PEM headers (any kind)
     r"PuTTY-User-Key-File-\d",
-    r"[a-z][a-z0-9+.-]*://[^\s/:@]+:[^\s/@]+@",      # scheme://user:pass@
+    r"[a-z][a-z0-9+.-]*://[^\s/:@]+:[^\s/@]+@",  # scheme://user:pass@
     r"(?i:bearer)\s+[A-Za-z0-9._~+/=-]{16,}",
     r"(?i:api[_-]?key|secret|token|passw(?:or)?d|pwd|auth)"  # key: value / key=value
     r"[A-Za-z0-9_-]*\s*[:=]\s*[\"']?[^\s\"',;]{6,}",
-    r"\b[A-Za-z0-9+/]{40,}={0,2}\b",                 # long base64-ish blobs
-    r"\b[0-9a-f]{48,}\b",                            # long hex (private keys, hashes)
+    r"\b[A-Za-z0-9+/]{40,}={0,2}\b",  # long base64-ish blobs
+    r"\b[0-9a-f]{48,}\b",  # long hex (private keys, hashes)
 ]
 SECRET = re.compile("|".join(f"(?:{s})" for s in _SHAPES))
 
@@ -61,8 +62,9 @@ def env_int(name, default):
 # --- git ---------------------------------------------------------------------
 def git(args, cwd):
     try:
-        out = subprocess.run(["git"] + args, cwd=cwd, capture_output=True,
-                             text=True, errors="replace", timeout=5)
+        out = subprocess.run(
+            ["git", *args], cwd=cwd, capture_output=True, text=True, errors="replace", timeout=5
+        )
     except Exception:
         return None
     return out.stdout.strip() if out.returncode == 0 else None
@@ -90,8 +92,12 @@ def is_tracked(path, cwd):
     """True when git knows the file (index or HEAD). Tracked handoffs came
     from someone else's commit and are never loaded."""
     try:
-        out = subprocess.run(["git", "ls-files", "--error-unmatch", "--", str(path)],
-                             cwd=cwd, capture_output=True, timeout=5)
+        out = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", "--", str(path)],
+            cwd=cwd,
+            capture_output=True,
+            timeout=5,
+        )
         return out.returncode == 0
     except Exception:
         return True  # unknown → treat as untrusted
@@ -110,7 +116,9 @@ def ensure_excluded(common_dir):
         if EXCLUDE_LINE in existing.splitlines():
             return True
         with open(exclude, "a", encoding="utf-8") as fh:
-            fh.write(("" if existing.endswith("\n") or not existing else "\n") + EXCLUDE_LINE + "\n")
+            fh.write(
+                ("" if existing.endswith("\n") or not existing else "\n") + EXCLUDE_LINE + "\n"
+            )
         return True
     except Exception:
         return False
@@ -165,8 +173,11 @@ def parse_stamp(value):
 
 def file_stamp(path, fm):
     """Best timestamp for ordering: parsed `updated:`/`created:`, else mtime."""
-    return parse_stamp(fm.get("updated")) or parse_stamp(fm.get("created")) \
+    return (
+        parse_stamp(fm.get("updated"))
+        or parse_stamp(fm.get("created"))
         or dt.datetime.fromtimestamp(path.stat().st_mtime)
+    )
 
 
 def slug(value):
