@@ -79,6 +79,11 @@ check "only other-branch -> notice" 'load | grep -q "Handoffs exist for: other"'
 printf '\xef\xbb\xbf---\nstatus: active\nbranch: '"'"'feature/demo'"'"'\nupdated: 2026-02-01\n---\nBOM-OK\n' > .claude/handoffs/b.md
 check "BOM + single quotes parsed" 'load | grep -q BOM-OK'
 rm .claude/handoffs/*.md
+printf -- '---\nstatus: active\nbranch: feature/demo\nupdated: 2026-01-01T12:00+00:00\n---\nUTC-NOON\n' > .claude/handoffs/u.md
+printf -- '---\nstatus: active\nbranch: feature/demo\nupdated: 2026-01-01T11:00+00:00\n---\nUTC-ELEVEN\n' > .claude/handoffs/v.md
+touch -t 202001010000 .claude/handoffs/u.md .claude/handoffs/v.md
+check "offset-aware stamps compare as instants" 'TZ=Asia/Tokyo load | grep -q "^UTC-NOON"'
+rm .claude/handoffs/*.md
 HANDOFF_LOAD_CAP= load; check "bad env fails open" '[ $? -eq 0 ]'
 
 echo "# git edge cases"

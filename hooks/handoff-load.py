@@ -24,8 +24,8 @@ from pathlib import Path
 
 try:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from handoff_common import (HANDOFF_DIR, env_int, file_stamp, frontmatter,  # noqa: E402
-                                is_tracked, repo_context)
+    from handoff_common import (HANDOFF_DIR, env_int, file_stamp, is_tracked,  # noqa: E402
+                                read_handoffs, repo_context)
 except Exception:  # a broken helper must never block a session or a compaction
     sys.exit(0)
 
@@ -41,8 +41,7 @@ BANNER = (
 )
 
 
-def emit(path, top, source, budget, label):
-    text = path.read_text(encoding="utf-8", errors="replace").lstrip("﻿")
+def emit(path, text, top, source, budget, label):
     rel = os.path.relpath(path, top)
     truncated = ""
     if len(text) > budget:
@@ -73,12 +72,8 @@ def main():
         return
 
     mine, tracked, other_branches = [], [], set()
-    for p in sorted(hdir.glob("*.md")):
-        try:
-            fm = frontmatter(p.read_text(encoding="utf-8", errors="replace"))
-        except Exception:
-            continue
-        if fm.get("status") not in LOADABLE or not fm.get("branch"):
+    for p, text, fm in read_handoffs(hdir):
+        if fm["status"] not in LOADABLE:
             continue
         if fm["branch"] != branch:
             other_branches.add(fm["branch"])
@@ -86,7 +81,7 @@ def main():
         if is_tracked(p, top):
             tracked.append(os.path.relpath(p, top))
             continue
-        mine.append((file_stamp(p, fm), fm["status"], p))
+        mine.append((file_stamp(p, fm), fm["status"], p, text))
 
     if tracked:
         print("Handoff files are tracked by git and were NOT loaded (handoffs "
@@ -99,19 +94,19 @@ def main():
         return
 
     mine.sort(key=lambda c: c[0], reverse=True)
-    newest_stamp, newest_status, newest = mine[0]
+    newest_stamp, newest_status, newest, newest_text = mine[0]
     if newest_status == "auto-snapshot":
         manual = next((c for c in mine if c[1] == "active"), None)
         if manual:
-            used = emit(manual[2], top, source, cap, "reviewed handoff")
-            emit(newest, top, source, max(cap - used, 2000),
+            used = emit(manual[2], manual[3], top, source, cap, "reviewed handoff")
+            emit(newest, newest_text, top, source, max(cap - used, 2000),
                  f"auto-snapshot written later ({newest_stamp:%Y-%m-%d %H:%M}) — "
                  "hook-written delta since the handoff, not reviewed")
             return
-        emit(newest, top, source, cap,
+        emit(newest, newest_text, top, source, cap,
              "auto-snapshot — hook-written before compaction, not a reviewed handoff")
         return
-    emit(newest, top, source, cap, None)
+    emit(newest, newest_text, top, source, cap, None)
 
 
 if __name__ == "__main__":
