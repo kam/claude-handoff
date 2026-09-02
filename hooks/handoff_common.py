@@ -132,17 +132,32 @@ def frontmatter(text):
     return fm
 
 
+def read_handoffs(hdir):
+    """Yield (path, text, frontmatter) for every *.md in hdir that has a
+    `status:` and `branch:`. Unreadable files are skipped. Both hooks select
+    candidates through this one function so they agree on what counts."""
+    for p in sorted(hdir.glob("*.md")):
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace").lstrip("\ufeff")
+        except Exception:
+            continue
+        fm = frontmatter(text)
+        if fm.get("status") and fm.get("branch"):
+            yield p, text, fm
+
+
 def parse_stamp(value):
-    """ISO date or date-time → naive datetime, or None. Future stamps are
-    rejected so `updated: 9999-…` cannot win the sort."""
+    """ISO date or date-time → naive local datetime, or None. Offset-aware
+    stamps are converted to local time first. Future stamps are rejected so
+    `updated: 9999-…` cannot win the sort."""
     if not value:
         return None
     try:
-        stamp = dt.datetime.fromisoformat(value.strip().replace("Z", ""))
+        stamp = dt.datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
     except ValueError:
         return None
     if stamp.tzinfo:
-        stamp = stamp.replace(tzinfo=None)
+        stamp = stamp.astimezone().replace(tzinfo=None)  # local wall-clock
     if stamp > dt.datetime.now() + dt.timedelta(minutes=5):
         return None
     return stamp
