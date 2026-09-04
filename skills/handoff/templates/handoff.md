@@ -20,6 +20,10 @@ tasks_file: <docs/prd/<name>.tasks.md, or omit>
 - Tests: <green | red: which>
 - Merged: <what>; Open: <PR/branch>
 
+## Constraints (the user's words)
+
+- "<verbatim constraint, requirement, or ruling>" — <what it rules in or out>
+
 ## Decisions (with why, and options rejected)
 
 - **<Decision>** because <why>. Ruled out <option> because <reason>. (<user's words if given>)
@@ -28,9 +32,14 @@ tasks_file: <docs/prd/<name>.tasks.md, or omit>
 
 - <What> — failed because <reason>; evidence: <error text | path | figure>
 
-## Blockers and open questions
+## Problems solved — do not re-derive
 
-- <Blocker or question, and who/what resolves it>
+- <Problem hit> — resolved by <fix>; <why that worked | the gotcha behind it>
+
+## Open loops — blockers, questions, promises
+
+- <Blocker or unanswered question, and who/what resolves it>
+- Promised: <something offered or committed to the user and not yet delivered>
 
 ## Next steps
 

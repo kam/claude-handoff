@@ -49,8 +49,14 @@ Three modes. Default is **write**.
 3. **Write the body** from `templates/handoff.md`:
    - **Decisions carry their why and the options rejected.** "Chose X because Y; ruled out Z because
      W." Use the user's own words where they gave them.
+   - **Constraints are verbatim.** Anything the user asked for, ruled out, or set as a requirement
+     goes in quotation marks in their own words. Paraphrase loses the boundary.
    - **Tried-and-failed is a do-not list.** Each line: what, why it failed, the evidence (error text,
      path, figure).
+   - **Problems solved are a do-not-re-derive list.** A problem hit and fixed is worth as much as one
+     that failed: record the fix and the gotcha behind it, or the next session pays for it twice.
+   - **Open loops include promises.** Not just blockers and unanswered questions — anything offered
+     or committed to the user and not yet delivered.
    - **Current state** is short bullets of what is true on disk now: branch, tests green or red, what
      is merged, what is uncommitted.
    - **Next steps** open with **one** executable action, then the ordered rest. When a task file
@@ -96,8 +102,11 @@ merged branch). Leave the file for history. The loader ignores `done` files.
 - Not a knowledge base. Transferable lessons go wherever the project keeps them; a handoff is
   per-branch, in-flight state.
 - Not a transcript. Reference, never re-embed.
-- Not a substitute for compaction when work continues in-thread. A short `/compact <focus>` is
-  cheaper than a handoff when nothing is ending.
+- Not a substitute for compaction when work continues in-thread — with one caveat. Compaction does
+  not durably lower context: the model re-reads what the summary dropped, so repeated compactions
+  plateau instead of shrinking. (Measured 2026-09-04 on a six-day session: 49 compactions, median
+  context per turn 152K in the first quarter and 185K in the last, and the three largest reads were
+  the session's own transcript.) `/handoff` then `/clear` is the only pair that actually resets.
 
 ## Loader contract (`handoff-load.py`, SessionStart)
 
