@@ -34,7 +34,7 @@ Requires `python3` and `git` on `PATH`. Restart Claude Code afterwards. Windows 
 
 Run `/handoff` at a task boundary, or whenever the context is heavy and you are about to `/compact` or `/clear`. The skill reads the repo (branch, status, log, task file), writes or updates `.claude/handoffs/<date>-<branch>-<title>.md`, and tells you the next action. Then compact or clear freely. The next session, or the post-compaction context, starts with the handoff loaded.
 
-`/handoff resume` reads the handoff, validates it against the repo, and proposes the next action. `/handoff done` closes it when the work ships.
+`/handoff resume` reads the handoff, validates it against the repo, and proposes the next action. `/handoff done` closes it when the work ships and inserts a `sessions` node into Navigator (`navigator insert --type sessions`) when the `navigator` CLI is on `PATH`.
 
 ### The document
 

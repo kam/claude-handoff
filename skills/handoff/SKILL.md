@@ -93,8 +93,27 @@ Three modes. Default is **write**.
 
 ## Done mode
 
-Set `status: done` and `updated`, append the closing audit entry (what shipped, where: PR, commit,
-merged branch). Leave the file for history. The loader ignores `done` files.
+1. Set `status: done` and `updated`, append the closing audit entry (what shipped, where: PR,
+   commit, merged branch). Leave the file for history. The loader ignores `done` files.
+2. **Insert a `sessions` node into Navigator** (NAV-T6c, 2026-09-04) so the session is findable a
+   month later. Skip with a one-line notice when `navigator` is not on `PATH`. Read the project slug
+   from `.navigator` at the repo root when it exists (`P=$(cat .navigator)`); otherwise omit
+   `--project`. Body = a condensed copy of the handoff: goal, decisions with their why, problems
+   solved, tried-and-failed, what shipped and where. Paths and URLs only, no diffs or transcript
+   text; run the same secrets check as write mode.
+
+   ```bash
+   printf '%s\n' "<condensed body>" | navigator insert --type sessions \
+     --title "Session: <handoff title> (<YYYY-MM-DD>)" \
+     --project "$P" --source-project "$(basename "$(git rev-parse --show-toplevel)")" \
+     --tags handoff,<project>,<topic> \
+     --set branch=<branch> --set handoff_path=<path to the handoff file> \
+     --body - --actor agent:claude-code
+   ```
+
+   Record the printed slug in the closing audit entry. If the insert exits 4 (slug taken) add the
+   date-time to the title and retry once; on any other failure report the error and leave the
+   handoff marked done — the node is a copy, never the source of truth.
 
 ## What this is not
 
