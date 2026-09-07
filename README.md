@@ -1,3 +1,5 @@
+> **Moved.** claude-handoff now ships inside [kam/hamster](https://github.com/kam/hamster) with failure capture, retro, and a tested rule engine. This repo is kept for history; new work goes there.
+
 # claude-handoff
 
 A `/handoff` skill for [Claude Code](https://code.claude.com) that writes the state compaction throws away: decisions and their why, options ruled out, what was tried and failed, where things stand, and the one executable next action. A SessionStart hook loads it back. A PreCompact hook writes a safety snapshot when you forget.
